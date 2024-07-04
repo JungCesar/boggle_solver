@@ -22,7 +22,7 @@ This project is a Boggle solver implemented as a web application using Flask. Th
 
 1. Clone the repository:
 
-    >git clone <https://github.com/your-username/boggle_solver.git>
+    >git clone <https://github.com/JungCesar/boggle_solver.git>
     >cd boggle_solver
 
 2. Set up a virtual environment and activate it:
