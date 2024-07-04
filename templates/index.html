@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Metatags -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+    <!-- Links: Stylesheets and Favicon -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL6f8ARn0kV7FgA5rC3b4RfnUHgq4kk4j4gHw" crossorigin="anonymous" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32x32.png') }}" />
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='icons/favicon-16x16.png') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='icons/favicon.ico') }}" />
+    <link rel="webmanifest" href="{{ url_for('static', filename='icons/site.webmanifest') }}" />
+
+    <!-- Title -->
+    <title>Boggle Solver</title>
+  </head>
+
+  <body>
+    <div class="container">
+      <!-- Form and Grid on top -->
+      <div class="row" id="container-flex">
+        <!-- Form -->
+        <div class="col-md-6 left-column">
+          <h1>Boggle Solver</h1>
+          <form method="POST">
+            <label for="grid">Enter the Boggle grid (16 letters):</label>
+            <input type="text" id="grid" name="grid" placeholder="ABOPWERTLGIUSDEN" />
+            <button type="submit">Solve</button>
+          </form>
+          {% if error %}
+            <p class="error">{{ error }}</p>
+          {% endif %}
+        </div>
+
+        <!-- Grid -->
+        <div class="col-md-6 right-column">
+          {% if grid %}
+            <div class="boggle-grid">
+              {% for row in grid %}
+                <div class="boggle-row">
+                  {% for letter in row %}
+                    <div class="boggle-cell">{{ letter }}</div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Result List of Words -->
+      <div class="row">
+        <div class="col-12">
+          {% if words %}
+            <h2>Results:</h2>
+            <p>{{ count }} words found in {{ '%.3f'|format(time) }} seconds.</p>
+            {% if longest_word %}
+              <p>Longest word: {{ longest_word }}</p>
+            {% endif %}
+            <h3>All Words:</h3>
+            <ul>
+              {% for word in words %}
+                <li>
+                  <span class="word" data-word="{{ word }}">{{ word }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

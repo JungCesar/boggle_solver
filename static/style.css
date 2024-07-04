@@ -1,0 +1,140 @@
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+h1,
+h2,
+h3 {
+    color: #333;
+}
+
+input[type="text"] {
+    width: 50%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+.boggle-grid {
+    display: inline-block;
+    background-color: #f0f0f0;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.boggle-row {
+    display: flex;
+}
+
+.boggle-cell {
+    width: 50px;
+    height: 50px;
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    font-weight: bold;
+    margin: 2px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.1s ease-in-out;
+}
+
+.boggle-cell:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.boggle-cell.highlighted {
+    background-color: #ffeb3b;
+    transition: background-color 0.3s ease;
+}
+
+.word {
+    cursor: pointer;
+    text-decoration: none;
+    color: #333;
+}
+
+.word:hover {
+    color: #0056b3;
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li {
+    background-color: #fff;
+    margin-bottom: 5px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.error {
+    color: red;
+}
+
+/* Base styles for all screen sizes */
+.col-md-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+}
+
+.left-column,
+.right-column {
+    margin-bottom: 20px;
+}
+
+/* Media query for medium devices and larger (desktop layout) */
+@media (min-width: 768px) {
+    .col-md-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+
+    .left-column,
+    .right-column {
+        margin-top: 20px;
+        margin-bottom: 0;
+    }
+
+    .right-column {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+    }
+}
