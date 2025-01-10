@@ -1,4 +1,48 @@
 $(document).ready(function () {
+    function initializeClickHandlers() {
+        // Highlight word when clicked
+        $('.word-item').off('click').on('click', function () {
+            const word = $(this).text();
+            highlightWord(word);
+        });
+    }
+
+    $('#sort-select').change(function () {
+        const sortOption = $(this).val(); // Get selected sort option
+        const wordItems = [];
+
+        // Collect current words from the word list
+        $('#word-list .word-item').each(function () {
+            wordItems.push($(this).text());
+        });
+
+        // Send AJAX POST request to the server
+        $.ajax({
+            url: '/sort',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                words: wordItems,
+                sort: sortOption
+            }),
+            success: function (response) {
+                // Update the word list with sorted words
+                const sortedWords = response.sorted_words;
+                const wordList = $('#word-list');
+                wordList.empty(); // Clear the current list
+                sortedWords.forEach(word => {
+                    wordList.append(`<li class="word-item">${word}</li>`);
+                });
+
+                // Reinitialize click handlers after updating the word list
+                initializeClickHandlers();
+            },
+            error: function (error) {
+                console.error("Error sorting words:", error);
+            }
+        });
+    });
+
     function highlightWord(word) {
         // Reset all cells
         $('.boggle-cell').removeClass('highlighted');
@@ -50,23 +94,12 @@ $(document).ready(function () {
         }
     }
 
-    // Find the longest word
-    let longestWord = '';
-    $('.word[data-word]').each(function () {
-        let word = $(this).data('word');
-        if (word.length > longestWord.length) {
-            longestWord = word;
-        }
-    });
+    // Initialize click handlers on page load
+    initializeClickHandlers();
 
-    // Highlight longest word by default
+    // Highlight the longest word by default (optional)
+    const longestWord = $('.word-item').first().text();
     if (longestWord) {
         highlightWord(longestWord);
     }
-
-    // Highlight word when clicked
-    $('.word').click(function () {
-        let word = $(this).data('word');
-        highlightWord(word);
-    });
 });

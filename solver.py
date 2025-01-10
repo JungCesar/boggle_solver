@@ -2,11 +2,29 @@ import time
 
 
 def load_word_list(filepath: str) -> set:
+    """
+    Loads a word list from a file and returns a set of words.
+
+    Args:
+        filepath (str): The path to the word list file.
+
+    Returns:
+        set: A set of words.
+    """
     with open(filepath, "r", encoding="utf-8") as file:
         return set(word.strip().upper() for word in file if len(word.strip()) > 2)
 
 
 def build_prefix_set(word_list: set) -> set:
+    """
+    Builds a set of prefixes from a word list.
+
+    Args:
+        word_list (set): A set of words.
+
+    Returns:
+        set: A set of prefixes.
+    """
     prefix_set = set()
     for word in word_list:
         for i in range(1, len(word) + 1):
@@ -16,7 +34,7 @@ def build_prefix_set(word_list: set) -> set:
 
 def find_words(grid: list, word_list: set) -> dict:
     def dfs(x, y, word, visited):
-        if len(word) > 2 and word in word_list:
+        if word in word_list:
             results.add(word)
 
         for dx, dy in [
