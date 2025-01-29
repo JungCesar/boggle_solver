@@ -102,4 +102,29 @@ $(document).ready(function () {
     if (longestWord) {
         highlightWord(longestWord);
     }
+
+    document.getElementById('camera').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                document.getElementById('grid').value = data.letters;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error processing image');
+        });
+    });
 });

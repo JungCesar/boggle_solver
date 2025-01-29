@@ -1,10 +1,16 @@
 from flask import Flask, request, render_template, jsonify
 from solver import find_words, load_word_list
-import cv2
-import numpy as np
-import pytesseract
-from PIL import Image
-import io
+
+# import cv2
+# import numpy as np
+# import pytesseract
+# from PIL import Image
+# import io
+# from google.cloud import vision
+import os
+from openai import OpenAI
+import base64
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 
@@ -13,29 +19,106 @@ GRID_SIZE = 16
 ROW_LENGTH = 4
 
 # Add these configurations after the existing ones
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
+
+# pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/bin/tesseract'
+
+# Load environment variables at the start of your app
+load_dotenv()
+
+# Test print (remove this after testing)
+api_key = os.getenv("OPENAI_API_KEY")
+if api_key:
+    print("API key loaded successfully!")
+    print(f"First 5 characters of key: {api_key[:5]}...")
+else:
+    print("Warning: OPENAI_API_KEY not found in environment variables")
+
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def process_boggle_image(image_data):
-    # Convert bytes to numpy array
-    nparr = np.frombuffer(image_data, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    
-    # Preprocess image
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    
-    # Configure Tesseract parameters
-    custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    
-    # Extract text
-    text = pytesseract.image_to_string(thresh, config=custom_config)
-    
-    # Clean and format the text
-    letters = ''.join(c for c in text.upper() if c.isalpha())
-    return letters[:16]  # Return only first 16 letters
+    try:
+        # Convert image data to base64
+        image_base64 = base64.b64encode(image_data).decode("utf-8")
+
+        # Initialize OpenAI client with API key from environment variable
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        # Prepare the API request with specific instructions
+        response = client.chat.completions.create(
+            model="chatgpt-4o-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This is a 4x4 Boggle grid. Read the letters from left to right, top to bottom, like reading a book. Return ONLY the 16 letters in a single string, no spaces or separators. The correct format should be exactly 16 uppercase letters.",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            max_tokens=50,
+        )
+
+        # Prepare the API request with optimized instructions
+        response = client.chat.completions.create(
+            model="gpt-4o-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Analyze this image of a 4x4 Boggle grid and return exactly 16 uppercase letters "
+                                "in a single string with no spaces, punctuation, or separators. "
+                                "The grid must be read from left to right, top to bottom, like reading a book. "
+                                "Ensure proper alignment by identifying the text orientation—if the grid appears rotated, "
+                                "correct its orientation before extracting the letters. "
+                                "Return ONLY the 16 letters in the correct order. Do not include any additional text, "
+                                "explanations, or formatting."
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            },
+                        },
+                    ],
+                }
+            ],
+            max_tokens=50,
+        )
+
+        # Extract and clean the response
+        letters = "".join(
+            c for c in response.choices[0].message.content if c.isalpha()
+        ).upper()
+
+        # Debug information
+        print(f"GPT-4 Vision detected letters: {letters}")
+        print(f"Number of letters detected: {len(letters)}")
+
+        if len(letters) != 16:
+            raise ValueError(f"Detected {len(letters)} letters instead of 16")
+
+        return letters
+
+    except Exception as e:
+        print(f"Error in image processing: {str(e)}")
+        raise
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -86,31 +169,31 @@ def sort():
         return {"error": str(e)}, 400
 
 
-@app.route('/upload', methods=['POST'])
+@app.route("/upload", methods=["POST"])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
     if file and allowed_file(file.filename):
         try:
             # Read the image file
             image_data = file.read()
             letters = process_boggle_image(image_data)
-            
+
             if len(letters) < 16:
-                return jsonify({'error': 'Could not detect 16 letters in image'}), 400
-                
-            return jsonify({'letters': letters}), 200
-            
+                return jsonify({"error": "Could not detect 16 letters in image"}), 400
+
+            return jsonify({"letters": letters}), 200
+
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
-            
-    return jsonify({'error': 'Invalid file type'}), 400
+            return jsonify({"error": str(e)}), 500
+
+    return jsonify({"error": "Invalid file type"}), 400
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080, debug=True, threaded=True)
+    app.run(host="0.0.0.0", port=8080, debug=True, threaded=True)
