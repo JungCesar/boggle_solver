@@ -1,12 +1,14 @@
 from flask import Flask, request, render_template, jsonify
 from solver import find_words, load_word_list
 
-# import cv2
-# import numpy as np
+import cv2
+import numpy as np
+
 # import pytesseract
 # from PIL import Image
 # import io
 # from google.cloud import vision
+
 import os
 from openai import OpenAI
 import base64
@@ -39,15 +41,92 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+# def preprocess_image(image_data):
+#     # Convert image data to a NumPy array
+#     np_img = np.frombuffer(image_data, np.uint8)
+#     img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+
+#     # Convert to grayscale
+#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+#     # Apply Gaussian blur
+#     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+#     # Apply adaptive thresholding
+#     thresh = cv2.adaptiveThreshold(
+#         blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2
+#     )
+
+#     # Optionally, you can apply additional preprocessing steps here
+
+#     # Encode the processed image back to bytes
+#     _, processed_img = cv2.imencode(".jpg", thresh)
+#     return processed_img.tobytes()
+
+
+def preprocess_image(image_data):
+    # Convert image data to a NumPy array
+    np_img = np.frombuffer(image_data, np.uint8)
+    img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Apply Gaussian blur
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Apply adaptive thresholding
+    thresh = cv2.adaptiveThreshold(
+        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2
+    )
+
+    # Apply morphological operations to remove noise and enhance the grid
+    kernel = np.ones((3, 3), np.uint8)
+    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+    # Apply edge detection
+    edges = cv2.Canny(morph, 50, 150)
+
+    # Encode the processed image back to bytes
+    _, processed_img = cv2.imencode(".jpg", edges)
+    return processed_img.tobytes()
+
+
 def process_boggle_image(image_data):
     try:
+        # Preprocess the image
+        preprocessed_image_data = preprocess_image(image_data)
+
         # Convert image data to base64
-        image_base64 = base64.b64encode(image_data).decode("utf-8")
+        image_base64 = base64.b64encode(preprocessed_image_data).decode("utf-8")
 
         # Initialize OpenAI client with API key from environment variable
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-        # Prepare the API request with specific instructions
+        # # Prepare the API request with specific instructions
+        # response = client.chat.completions.create(
+        #     model="gpt-4o",
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": [
+        #                 {
+        #                     "type": "text",
+        #                     "text": "This is a 4x4 Boggle grid. Read the letters from left to right, top to bottom, like reading a book. Return ONLY the 16 letters in a single string, no spaces or separators. The correct format should be exactly 16 uppercase letters.",
+        #                 },
+        #                 {
+        #                     "type": "image_url",
+        #                     "image_url": {
+        #                         "url": f"data:image/jpeg;base64,{image_base64}"
+        #                     },
+        #                 },
+        #             ],
+        #         }
+        #     ],
+        #     max_tokens=50,
+        # )
+
+        # Prepare the API request with optimized instructions
         response = client.chat.completions.create(
             model="chatgpt-4o-latest",
             messages=[
@@ -56,37 +135,12 @@ def process_boggle_image(image_data):
                     "content": [
                         {
                             "type": "text",
-                            "text": "This is a 4x4 Boggle grid. Read the letters from left to right, top to bottom, like reading a book. Return ONLY the 16 letters in a single string, no spaces or separators. The correct format should be exactly 16 uppercase letters.",
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{image_base64}"
-                            },
-                        },
-                    ],
-                }
-            ],
-            max_tokens=50,
-        )
-
-        # Prepare the API request with optimized instructions
-        response = client.chat.completions.create(
-            model="gpt-4o-latest",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
                             "text": (
                                 "Analyze this image of a 4x4 Boggle grid and return exactly 16 uppercase letters "
-                                "in a single string with no spaces, punctuation, or separators. "
-                                "The grid must be read from left to right, top to bottom, like reading a book. "
-                                "Ensure proper alignment by identifying the text orientation—if the grid appears rotated, "
-                                "correct its orientation before extracting the letters. "
-                                "Return ONLY the 16 letters in the correct order. Do not include any additional text, "
-                                "explanations, or formatting."
+                                "in a single string with no spaces or separators. "
+                                "Read the grid from left to right, top to bottom. "
+                                "If the grid is rotated, correct its orientation before extracting the letters. "
+                                "Return ONLY the 16 letters in the correct order."
                             ),
                         },
                         {
