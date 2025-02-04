@@ -4,7 +4,7 @@ from solver import find_words, load_word_list
 import cv2
 import numpy as np
 
-# import pytesseract
+import pytesseract
 # from PIL import Image
 # import io
 # from google.cloud import vision
@@ -57,76 +57,72 @@ def allowed_file(filename):
 #         blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2
 #     )
 
-#     # Optionally, you can apply additional preprocessing steps here
+#     # Apply morphological operations to remove noise and enhance the grid
+#     kernel = np.ones((3, 3), np.uint8)
+#     morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+#     # Apply edge detection
+#     edges = cv2.Canny(morph, 50, 150)
 
 #     # Encode the processed image back to bytes
-#     _, processed_img = cv2.imencode(".jpg", thresh)
+#     _, processed_img = cv2.imencode(".jpg", edges)
 #     return processed_img.tobytes()
-
-
-def preprocess_image(image_data):
-    # Convert image data to a NumPy array
-    np_img = np.frombuffer(image_data, np.uint8)
-    img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
-
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Apply Gaussian blur
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
-    # Apply adaptive thresholding
-    thresh = cv2.adaptiveThreshold(
-        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2
-    )
-
-    # Apply morphological operations to remove noise and enhance the grid
-    kernel = np.ones((3, 3), np.uint8)
-    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-
-    # Apply edge detection
-    edges = cv2.Canny(morph, 50, 150)
-
-    # Encode the processed image back to bytes
-    _, processed_img = cv2.imencode(".jpg", edges)
-    return processed_img.tobytes()
 
 
 def process_boggle_image(image_data):
     try:
-        # Preprocess the image
-        preprocessed_image_data = preprocess_image(image_data)
-
-        # Convert image data to base64
-        image_base64 = base64.b64encode(preprocessed_image_data).decode("utf-8")
-
-        # Initialize OpenAI client with API key from environment variable
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-        # # Prepare the API request with specific instructions
-        # response = client.chat.completions.create(
-        #     model="gpt-4o",
-        #     messages=[
-        #         {
-        #             "role": "user",
-        #             "content": [
-        #                 {
-        #                     "type": "text",
-        #                     "text": "This is a 4x4 Boggle grid. Read the letters from left to right, top to bottom, like reading a book. Return ONLY the 16 letters in a single string, no spaces or separators. The correct format should be exactly 16 uppercase letters.",
-        #                 },
-        #                 {
-        #                     "type": "image_url",
-        #                     "image_url": {
-        #                         "url": f"data:image/jpeg;base64,{image_base64}"
-        #                     },
-        #                 },
-        #             ],
-        #         }
-        #     ],
-        #     max_tokens=50,
-        # )
-
-        # Prepare the API request with optimized instructions
+        # Convert bytes to numpy array
+        nparr = np.frombuffer(image_data, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        # Convert to grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Gaussian blur
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Apply binary thresholding
+        _, thresh = cv2.threshold(blurred, 150, 255, cv2.THRESH_BINARY_INV)
+        
+        # Find contours
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Filter and sort contours
+        letter_contours = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area > 100:  # Adjust this threshold based on your image size
+                x, y, w, h = cv2.boundingRect(contour)
+                letter_contours.append((x, y, w, h, contour))
+        
+        # Sort contours by position (top to bottom, left to right)
+        letter_contours.sort(key=lambda x: (x[1] // 50) * 4 + x[0] // 50)
+        
+        # Extract and recognize letters
+        recognized_letters = ""
+        custom_config = r'--psm 10 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        
+        for x, y, w, h, contour in letter_contours[:16]:  # Limit to 16 letters
+            # Extract letter image
+            letter_image = thresh[y:y+h, x:x+w]
+            
+            # Resize for better OCR
+            letter_image = cv2.resize(letter_image, (28, 28))
+            
+            # Recognize letter
+            letter = pytesseract.image_to_string(letter_image, config=custom_config).strip()
+            if letter:
+                recognized_letters += letter
+        
+        # Debug information
+        print(f"Detected letters: {recognized_letters}")
+        print(f"Number of letters detected: {len(recognized_letters)}")
+        
+        # Convert image to base64 for GPT-4 Vision
+        image_base64 = base64.b64encode(image_data).decode('utf-8')
+        
+        # Use GPT-4 Vision as a backup/verification
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         response = client.chat.completions.create(
             model="chatgpt-4o-latest",
             messages=[
@@ -135,40 +131,28 @@ def process_boggle_image(image_data):
                     "content": [
                         {
                             "type": "text",
-                            "text": (
-                                "Analyze this image of a 4x4 Boggle grid and return exactly 16 uppercase letters "
-                                "in a single string with no spaces or separators. "
-                                "Read the grid from left to right, top to bottom. "
-                                "If the grid is rotated, correct its orientation before extracting the letters. "
-                                "Return ONLY the 16 letters in the correct order."
-                            ),
+                            "text": "This is a 4x4 Boggle grid. Return ONLY the 16 letters in reading order (left to right, top to bottom) as a single string of uppercase letters. No explanations or additional text."
                         },
                         {
                             "type": "image_url",
                             "image_url": {
                                 "url": f"data:image/jpeg;base64,{image_base64}"
-                            },
-                        },
-                    ],
+                            }
+                        }
+                    ]
                 }
             ],
-            max_tokens=50,
+            max_tokens=50
         )
-
-        # Extract and clean the response
-        letters = "".join(
-            c for c in response.choices[0].message.content if c.isalpha()
-        ).upper()
-
-        # Debug information
-        print(f"GPT-4 Vision detected letters: {letters}")
-        print(f"Number of letters detected: {len(letters)}")
-
-        if len(letters) != 16:
-            raise ValueError(f"Detected {len(letters)} letters instead of 16")
-
-        return letters
-
+        
+        # Get GPT-4's verification/correction
+        verified_letters = ''.join(c for c in response.choices[0].message.content if c.isalpha()).upper()
+        
+        print(f"GPT-4 verified letters: {verified_letters}")
+        
+        # Return the verified letters
+        return verified_letters[:16]
+        
     except Exception as e:
         print(f"Error in image processing: {str(e)}")
         raise
@@ -250,4 +234,4 @@ def upload_file():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True, threaded=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
